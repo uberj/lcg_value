@@ -45,7 +45,7 @@ int lcv_value_backwards(int s1, double z) {
         //      *z += 2147483562;
         z_maybe -= 2147483562;
 
-        if (z_maybe >= 0) {
+        if (z_maybe < 1) {
                 z = z_maybe;
         }
 
@@ -65,7 +65,7 @@ int lcv_value_backwards(int s1, double z) {
          *      s += m
          */
         s2_mod_maybe = s2 - m;
-        if (s2_mod_maybe >= 0) {
+        if (s2_mod_maybe < 0) {
                 s2 = s2_mod_maybe;
         }
 
@@ -138,24 +138,21 @@ int main(int argc, char** argv)
 	// now that we have some states, lets see if we can reconstruct them
         double indicator;
         int s1_guess = -1;
+        double sample_z = target_states[0].z;
         for (;;) {
                 s1_guess++; // pick s1
-                if (s1_guess == sample_size) {
-                        break;
-                }
                 if (s1_guess > (int) pow(2, 31)) {
                         break;
                 }
-                LCGState state = target_states[s1_guess];
                 int s1 = s1_guess;
-                int s2_guess = lcv_value_backwards(s1, state.z);
+                int s2_guess = lcv_value_backwards(s1, sample_z);
                 int s2 = s2_guess;
                 double z_candidate;
                 int incorrect_guess = 0;
                 // Using our chosen s1 and our calculated s2, compute z
                 lcg_value(&z_candidate, &s1, &s2);
                 // If z is what we expect, then we guessed s1 correctly
-                if (fabs(z_candidate - state.z) < D_THRESHOLD) {
+                if (fabs(z_candidate - sample_z) < D_THRESHOLD) {
                         printf("Looking good at s1=%d s2=%d lcg_value=%.14f\n", s1, s2, z_candidate);
                         // seed another states array with our guesses and compare them to the target states
                         LCGState *test_states = malloc(sample_size * sizeof(LCGState));
