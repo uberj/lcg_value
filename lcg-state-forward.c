@@ -140,6 +140,9 @@ int main(int argc, char** argv)
         int s1_guess = -1;
         for (;;) {
                 s1_guess++; // pick s1
+                if (s1_guess == sample_size) {
+                        break;
+                }
                 if (s1_guess > (int) pow(2, 31)) {
                         break;
                 }
