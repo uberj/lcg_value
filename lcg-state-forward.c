@@ -53,9 +53,6 @@ int lcg_value_backwards(int s1, double z) {
         z_maybe = z - 2147483562;
 
         printf("backwards(2.5) z_maybe=%.14f\n", z_maybe);
-        if (z_maybe <= 1 && z_maybe < pow(2, 31)) {
-                z = z_maybe;
-        }
         printf("backwards(3) z=%.14f\n", z);
 
         MODMULT(53668, 40014, 12211, 2147483563L, s1);
@@ -66,13 +63,18 @@ int lcg_value_backwards(int s1, double z) {
         // ----------------
         // s2 = s1 - z
         s2 = s1 - z;
-        printf("backwards(4) s1=%d s2=%d\n", s1, s2);
+        // if s2 is negative, we chose the wrong z, switch it to z_maybe
+        if (s2 < 0) {
+                printf("backwards(4) s2 was neg s1=%d s2=%d\n", s1, s2);
+                s2 = s1 - z_maybe;
+        }
+        printf("backwards(5) s1=%d s2=%d\n", s1, s2);
 
         s2_mod_maybe = s2 - m;
         if (s2_mod_maybe < 0) {
                 s2 = s2_mod_maybe;
         }
-        printf("backwards(5) s1=%d s2=%d\n", s1, s2);
+        printf("backwards(6) s1=%d s2=%d\n", s1, s2);
 
         // Need mod inverse
         // Forward PRNG goes:
