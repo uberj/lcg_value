@@ -23,71 +23,78 @@ void modMult_(int *s1, int *s2) {
 }
 
 void lcg_value(double *z, int *s1, int *s2) {
+        printf("actual(0) s1=%d s2=%d\n", *s1, *s2);
         modMult_(s1, s2);
 
+        printf("actual(1) s1=%d s2=%d\n", *s1, *s2);
         *z = *s1 - *s2;
+        printf("actual(2) z=%.14f\n", *z);
         if (*z < 1)
                 *z += 2147483562;
+        printf("actual(3) z=%.14f\n", *z);
         *z *= 4.656613e-10;
+        printf("actual(4) z=%.14f\n", *z);
 }
 
-int lcv_value_backwards(int s1, double z) {
+int lcg_value_backwards(int s1, double z) {
         // Given s1 and z, what is s2
-        // *z *= 4.656613e-10;
-        int z_maybe;
+        double z_maybe;
         int s2_mod_maybe;
         int s2;
         int a, b, c, q;
         long m;
 
+        // *z *= 4.656613e-10;
+        printf("backwards(1) z=%.14f\n", z);
         z /= 4.656613e-10;
+        printf("backwards(2) z=%.14f\n", z);
         // if (*z < 1)
         //      *z += 2147483562;
-        z_maybe -= 2147483562;
+        z_maybe = z - 2147483562;
 
-        if (z_maybe < 1) {
+        printf("backwards(2.5) z_maybe=%.14f\n", z_maybe);
+        if (z_maybe <= 1 && z_maybe < pow(2, 31)) {
                 z = z_maybe;
         }
+        printf("backwards(3) z=%.14f\n", z);
+
+        MODMULT(53668, 40014, 12211, 2147483563L, s1);
 
         // *z  = *s1 - *s2
         // +s2    +s2
         // -z     -z
         // ----------------
         // s2 = s1 - z
-        s2 = (int) s1 - z;
+        s2 = s1 - z;
+        printf("backwards(4) s1=%d s2=%d\n", s1, s2);
 
-        // #define MODMULT(a, b, c, m, s) q = s/a;s=b*(s-a*q)-c*q;if(s<0)s+=m
-        /* MODMULT computes s*b mod m, provided that m=a*b+c and 0<=c<m */
-        /*
-         * q = s / a
-         * s = b * (s - a * q) - c * q
-         * if (s < 0)
-         *      s += m
-         */
         s2_mod_maybe = s2 - m;
         if (s2_mod_maybe < 0) {
                 s2 = s2_mod_maybe;
         }
+        printf("backwards(5) s1=%d s2=%d\n", s1, s2);
 
-        // #define MODMULT(a, b, c, m, s) q = s/a;s=b*(s-a*q)-c*q;if(s<0)s+=m
-        // MODMULT(52774, 40692, 3791, 2147483399L, *s2);
-        a = 52774;
-        b = 40692;
-        c = 3791;
-        m = 2147483399L;
-
-        // s                    = b * (s - a * q) - c * q
-        //
-        // s + c * q            = b * (s - a * q)
-        //
-        // s + c * q
-        // ---------            = s - a * q
-        //     b
-        //
-        // s + c * q
-        // --------- + a * q    = s
-        //     b
-        s2 = ((s2 + c * q) / b) + a * q;
+        // Need mod inverse
+        // Forward PRNG goes:
+        // s2_next = s2_cur * b (mod m)
+        // Backwards needs s2_cur and has s2_next
+        // for try_s2 in range(0, 2*32):
+        //      if (s2_cur * b % (mod m)):
+        //              this is the right s2_cur
+        // (there has to be a short-cut here)
+        /* MODMULT computes s*b mod m, provided that m=a*b+c and 0<=c<m */
+        /*a = 52774;*/
+        /*b = 40692;*/
+        /*c = 3791;*/
+        /*m = 2147483399;*/
+        for (int try_s2 = 0; try_s2 < pow(2, 31); try_s2++) {
+                int try_s2_ = try_s2;
+                // modmult for s2 taken from original lcg_value
+                MODMULT(52774, 40692, 3791, 2147483399L, try_s2_);
+                if (try_s2_ == s2) {
+                        return try_s2;
+                }
+        }
         return s2;
 }
 
@@ -108,34 +115,26 @@ void calc_states(int seed_s1, int seed_s2, int state_size, LCGState *states_to_s
                         states_to_seed[i].s1 = states_to_seed[i - 1].s1;
                         states_to_seed[i].s2 = states_to_seed[i - 1].s2;
                 }
+                int s1_initial = states_to_seed[i].s1;
+                int s2_initial = states_to_seed[i].s2;
+                printf("(%d)---------------------------------\n", i);
                 lcg_value(&states_to_seed[i].z, &states_to_seed[i].s1, &states_to_seed[i].s2);
+                printf("%d: s1=%d s2=%d lcg_value=%.14f\n",
+                                i + 1,
+                                states_to_seed[i].s1,
+                                states_to_seed[i].s2,
+                                states_to_seed[i].z);
+                int s2_guess = lcg_value_backwards(s1_initial, states_to_seed[i].z);
+                printf("Guess at:             s2=%d (actual s2=%d)\n", s2_guess, s2_initial);
+                double z2_guess;
+                lcg_value(&z2_guess, &s1_initial, &s2_guess);
+                printf("Guess closeness:             z - z_guess = %.14f\n", states_to_seed[i].z - z2_guess);
+
+
         }
 }
 
-int main(int argc, char** argv)
-{
-	if (argc != 4)
-	{
-		printf("usage: %s <s1 [-1251222200]> <s2 [98137]> <times>\n", argv[0]);
-		return -1;
-	}
-
-        int sample_size = atoi(argv[3]);
-        LCGState *target_states = malloc(sample_size * sizeof(LCGState));
-        int s1_entered = atoi(argv[1]);
-        int s2_entered = atoi(argv[2]);
-        double D_THRESHOLD = 0.00000001;
-        calc_states(s1_entered, s2_entered, sample_size, target_states);
-
-        for (int i = 0; i < sample_size; i++) {
-                printf("%d: s1=%d s2=%d lcg_value=%.14f\n",
-                                i + 1,
-                                target_states[i].s1,
-                                target_states[i].s2,
-                                target_states[i].z);
-        }
-
-	// now that we have some states, lets see if we can reconstruct them
+void attempt_to_break(LCGState *target_states, int sample_size, double D_THRESHOLD) {
         double indicator;
         int s1_guess = -1;
         double sample_z = target_states[0].z;
@@ -145,7 +144,7 @@ int main(int argc, char** argv)
                         break;
                 }
                 int s1 = s1_guess;
-                int s2_guess = lcv_value_backwards(s1, sample_z);
+                int s2_guess = lcg_value_backwards(s1, sample_z);
                 int s2 = s2_guess;
                 double z_candidate;
                 int incorrect_guess = 0;
@@ -167,10 +166,33 @@ int main(int argc, char** argv)
 
                         if (incorrect_guess == 0) {
                                 printf("Found initial states of s1=%d s2=%d!", s1_guess, s2_guess);
-                                return 0;
+                                return;
                         }
                 }
         }
+}
+
+int main(int argc, char** argv)
+{
+	if (argc != 4)
+	{
+		printf("usage: %s <s1 [-1251222200]> <s2 [98137]> <times>\n", argv[0]);
+		return -1;
+	}
+
+        int sample_size = atoi(argv[3]);
+        LCGState *target_states = malloc(sample_size * sizeof(LCGState));
+        int s1_entered = atoi(argv[1]);
+        int s2_entered = atoi(argv[2]);
+        float D_THRESHOLD = 0.00000001;
+        calc_states(s1_entered, s2_entered, sample_size, target_states);
+
+        for (int i = 0; i < sample_size; i++) {
+        }
+
+	// now that we have some states, lets see if we can reconstruct them
+        /*attempt_to_break(target_states, sample_size, D_THRESHOLD);*/
+
 
 	return 0;
 }
