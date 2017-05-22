@@ -91,7 +91,19 @@ int lcg_value_backwards(int s1, double z) {
         /* c = 3791;*/
         m = 2147483399;
         /*
-         * GCD calc for b (mod m)
+         * Brute force find the inverse
+        for (int try_s2 = 0; try_s2 < pow(2, 31); try_s2++) {
+                int try_s2_ = try_s2;
+                // modmult for s2 copied from original lcg_value
+                MODMULT(52774, 40692, 3791, 2147483399L, try_s2_);
+                if (try_s2_ == s2) {
+                        return try_s2;
+                }
+        }
+        */
+        // really fast way to find the inverse (used python to calc b ^1)
+        /*
+         * Inverse calc for b (mod m)
          * >>> for i in xrange(0, 2147483399):
          * ...    if (i * 40692) % 2147483399 == 1:
          * ...       print i
@@ -101,21 +113,7 @@ int lcg_value_backwards(int s1, double z) {
          * 1481316021
          *
          */
-        for (int try_s2 = 0; try_s2 < pow(2, 31); try_s2++) {
-                int try_s2_ = try_s2;
-                // modmult for s2 taken from original lcg_value
-                MODMULT(52774, 40692, 3791, 2147483399L, try_s2_);
-                if (try_s2_ == s2) {
-                        double test = s2 * 1481316021;
-                        while (test > m) {
-                                test -= m;
-                        }
-                        printf("backwards(7) test=%d s1=%d s2=%d\n", test, s1, s2);
-                        return try_s2;
-                }
-        }
-        printf("FAIL!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-        return s2;
+        return (int) ((long long int) s2 * (long long int) 1481316021 % (long long int) m);
 }
 
 typedef struct {
@@ -158,27 +156,24 @@ void calc_states(int seed_s1, int seed_s2, int state_size, LCGState *states_to_s
 
 void attempt_to_break(LCGState *target_states, int sample_size, double D_THRESHOLD) {
         double indicator;
-        int s1_guess = -1;
         double sample_z = target_states[0].z;
-        for (;;) {
-                s1_guess++; // pick s1
-                if (s1_guess > (int) pow(2, 31)) {
-                        break;
-                }
-                int s1 = s1_guess;
-                int s2_guess = lcg_value_backwards(s1, sample_z);
-                int s2 = s2_guess;
-                double z_candidate;
-                int incorrect_guess = 0;
-                // Using our chosen s1 and our calculated s2, compute z
-                lcg_value(&z_candidate, &s1, &s2);
-                // If z is what we expect, then we guessed s1 correctly
-                if (fabs(z_candidate - sample_z) < D_THRESHOLD) {
-                        printf("Looking good at s1=%d s2=%d lcg_value=%.14f\n", s1, s2, z_candidate);
+        for (int i = 1; i < pow(2, 31); i++) {
+                int s1_guess = i;
+                int s2_guess = lcg_value_backwards(s1_guess, sample_z);
+                printf("--- break attempt (%d) s1=%d s2=%d lcg_value=%.14f\n", i, s1_guess, s2_guess, sample_z);
+
+                double test_z;
+                int s1_next = s1_guess;
+                int s2_next = s2_guess;
+                lcg_value(&test_z, &s1_next, &s2_next);
+
+                printf("--- guess value (%d) s1=%d s2=%d test_z=%.14f\n", i, s1_guess, s2_guess, test_z);
+                if (fabs(test_z - sample_z) < D_THRESHOLD) {
+                        printf("Looking good at s1=%d s2=%d test_z=%.14f lcg_value=%.14f\n", s1_guess, s2_guess, test_z, sample_z);
                         // seed another states array with our guesses and compare them to the target states
                         LCGState *test_states = malloc(sample_size * sizeof(LCGState));
-                        calc_states(s1, s2, sample_size, test_states, 0);
-                        incorrect_guess = 0;
+                        calc_states(s1_guess, s2_guess, sample_size, test_states, 0);
+                        int incorrect_guess = 0;
                         for (int i = 0; i < sample_size; i++) {
                                 if (!fabs(target_states[i].z - test_states[i].z) < D_THRESHOLD) {
                                         incorrect_guess = 1;
@@ -187,10 +182,13 @@ void attempt_to_break(LCGState *target_states, int sample_size, double D_THRESHO
                         }
 
                         if (incorrect_guess == 0) {
-                                printf("Found initial states of s1=%d s2=%d!", s1_guess, s2_guess);
+                                printf("Found initial states of s1=%d s2=%d!\n", s1_guess, s2_guess);
                                 return;
                         }
+
+                        free(test_states);
                 }
+
         }
 }
 
@@ -207,11 +205,12 @@ int main(int argc, char** argv)
         int s1_entered = atoi(argv[1]);
         int s2_entered = atoi(argv[2]);
         float D_THRESHOLD = 0.00000001;
-        calc_states(s1_entered, s2_entered, sample_size, target_states, 1);
+        calc_states(s1_entered, s2_entered, sample_size, target_states, 0);
 
 	// now that we have some states, lets see if we can reconstruct them
-        /*attempt_to_break(target_states, sample_size, D_THRESHOLD);*/
+        attempt_to_break(target_states, sample_size, D_THRESHOLD);
 
 
+        free(target_states);
 	return 0;
 }
