@@ -23,17 +23,11 @@ void modMult_(int *s1, int *s2) {
 }
 
 void lcg_value(double *z, int *s1, int *s2) {
-        printf("actual(0) s1=%d s2=%d\n", *s1, *s2);
         modMult_(s1, s2);
-
-        printf("actual(1) s1=%d s2=%d\n", *s1, *s2);
         *z = *s1 - *s2;
-        printf("actual(2) z=%.14f\n", *z);
         if (*z < 1)
                 *z += 2147483562;
-        printf("actual(3) z=%.14f\n", *z);
         *z *= 4.656613e-10;
-        printf("actual(4) z=%.14f\n", *z);
 }
 
 int lcg_value_backwards(int s1, double z) {
@@ -45,15 +39,11 @@ int lcg_value_backwards(int s1, double z) {
         long m;
 
         // *z *= 4.656613e-10;
-        printf("backwards(1) z=%.14f\n", z);
         z /= 4.656613e-10;
-        printf("backwards(2) z=%.14f\n", z);
         // if (*z < 1)
         //      *z += 2147483562;
         z_maybe = z - 2147483562;
 
-        printf("backwards(2.5) z_maybe=%.14f\n", z_maybe);
-        printf("backwards(3) z=%.14f\n", z);
 
         MODMULT(53668, 40014, 12211, 2147483563L, s1);
 
@@ -65,16 +55,13 @@ int lcg_value_backwards(int s1, double z) {
         s2 = s1 - z;
         // if s2 is negative, we chose the wrong z, switch it to z_maybe
         if (s2 < 0) {
-                printf("backwards(4) s2 was neg s1=%d s2=%d\n", s1, s2);
                 s2 = s1 - z_maybe;
         }
-        printf("backwards(5) s1=%d s2=%d\n", s1, s2);
 
         s2_mod_maybe = s2 - m;
         if (s2_mod_maybe < 0) {
                 s2 = s2_mod_maybe;
         }
-        printf("backwards(6) s1=%d s2=%d\n", s1, s2);
 
         // Need mod inverse
         // Forward PRNG goes:
@@ -124,7 +111,6 @@ typedef struct {
 
 void calc_states(int seed_s1, int seed_s2, int state_size, LCGState *states_to_seed, int test_backwards) {
         for (int i = 0; i < state_size; i++) {
-                printf("(%d)---------------------------------\n", i);
                 if (i == 0) {
                         // init
                         states_to_seed[i].s1 = seed_s1;
@@ -137,11 +123,6 @@ void calc_states(int seed_s1, int seed_s2, int state_size, LCGState *states_to_s
                 int s1_initial = states_to_seed[i].s1;
                 int s2_initial = states_to_seed[i].s2;
                 lcg_value(&states_to_seed[i].z, &states_to_seed[i].s1, &states_to_seed[i].s2);
-                printf("%d: s1=%d s2=%d lcg_value=%.14f\n",
-                                i + 1,
-                                states_to_seed[i].s1,
-                                states_to_seed[i].s2,
-                                states_to_seed[i].z);
                 if (test_backwards != 0) {
                         int s2_guess = lcg_value_backwards(s1_initial, states_to_seed[i].z);
                         printf("Guess at:             s2=%d (actual s2=%d)\n", s2_guess, s2_initial);
@@ -160,16 +141,13 @@ void attempt_to_break(LCGState *target_states, int sample_size, double D_THRESHO
         for (int i = 1; i < pow(2, 31); i++) {
                 int s1_guess = i;
                 int s2_guess = lcg_value_backwards(s1_guess, sample_z);
-                printf("--- break attempt (%d) s1=%d s2=%d lcg_value=%.14f\n", i, s1_guess, s2_guess, sample_z);
 
                 double test_z;
                 int s1_next = s1_guess;
                 int s2_next = s2_guess;
                 lcg_value(&test_z, &s1_next, &s2_next);
 
-                printf("--- guess value (%d) s1=%d s2=%d test_z=%.14f\n", i, s1_guess, s2_guess, test_z);
                 if (fabs(test_z - sample_z) < D_THRESHOLD) {
-                        printf("Looking good at s1=%d s2=%d test_z=%.14f lcg_value=%.14f\n", s1_guess, s2_guess, test_z, sample_z);
                         // seed another states array with our guesses and compare them to the target states
                         LCGState *test_states = malloc(sample_size * sizeof(LCGState));
                         calc_states(s1_guess, s2_guess, sample_size, test_states, 0);
@@ -204,7 +182,7 @@ int main(int argc, char** argv)
         LCGState *target_states = malloc(sample_size * sizeof(LCGState));
         int s1_entered = atoi(argv[1]);
         int s2_entered = atoi(argv[2]);
-        float D_THRESHOLD = 0.00000001;
+        float D_THRESHOLD = 0.00001;
         calc_states(s1_entered, s2_entered, sample_size, target_states, 0);
 
 	// now that we have some states, lets see if we can reconstruct them
