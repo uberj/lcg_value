@@ -1,0 +1,13 @@
+Cracking PHP's lcg_value() 
+===========================
+
+Exercise: http://www.crypto-world.com/lcg_value.html
+
+Usage:
+```
+[master][~/projects/lcg_value]$ make && ./lcg-state-forward 2982398 43523 100
+gcc -g lcg-state-forward.c -o lcg-state-forward
+gcc -g lcg-state-forward-orig-with-modification.c -o lcg-state-forward-orig-with-modification
+Found initial states of s1=2982398 s2=43523!
+```
+
